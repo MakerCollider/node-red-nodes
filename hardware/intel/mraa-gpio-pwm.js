@@ -15,29 +15,45 @@
  **/
 
 module.exports = function(RED) {
-    var m = require('mraa');
-
-    function gpioPWM(n) {
-        RED.nodes.createNode(this, n);
-        this.pin = Number(n.pin);
-        this.period = Number(n.period) || 100;
-        var node = this;
-        node.p = new m.Pwm(node.pin);
-        //node.p.dir(m.DIR_OUT);
-        //node.p.mode(m.PIN_PWM);
-        node.p.enable(true);
-        node.p.period_ms(node.period);
-
-        node.on("input", function(msg) {
-            if (msg.payload) {
-                node.p.write(Number(msg.payload));
-            }
-        });
-
-        this.on('close', function() {
-            node.p.enable(false);
-        });
-    }
+    var m = require('mraa');                                               
+                                                                           
+    function gpioPWM(n) {                                                  
+        RED.nodes.createNode(this, n);                                     
+        this.pin = Number(n.pin);                                          
+        this.period = Number(n.period) || 100;                             
+        var node = this;                                                   
+        function setPwmto0(pin) {                                          
+            var mraa =require('mraa');                                     
+            var exec = require('child_process').exec;                      
+            var gpio = new mraa.Gpio(pin);                            
+            var cmd1 = "echo " + pin + " > /sys/class/gpio/unexport";
+            var cmd2 = "echo " + pin + " > /sys/class/gpio/export";  
+            gpio.dir(mraa.DIR_OUT);                                  
+            exec(cmd1,0);                                            
+            gpio.write(0);                                           
+            exec(cmd2,0);                                            
+        }                                                            
+        node.on("input", function(msg) {                             
+            if (msg.payload) {                                       
+                if (Number(msg.payload) != 0)                        
+                {                                                    
+                    node.p = new m.Pwm(node.pin);                    
+                    //node.p.dir(m.DIR_OUT);                         
+                    //node.p.mode(m.PIN_PWM);                        
+                    node.p.enable(true);                             
+                    node.p.period_ms(node.period);                 
+                    node.p.write(Number(msg.payload));               
+                } else {                                           
+                    setPwmto0(node.pin);              
+                }                                     
+            }                                         
+        });                                           
+                                                      
+        this.on('close', function() {                 
+            //node.p.enable(false);                   
+            setPwmto0(node.pin);                      
+        });                                           
+    }         
     RED.nodes.registerType("mraa-gpio-pwm", gpioPWM);
 
     RED.httpAdmin.get('/mraa-gpio/:id', RED.auth.needsPermission('mraa-gpio.read'), function(req,res) {
